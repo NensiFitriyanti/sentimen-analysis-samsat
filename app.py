@@ -5,11 +5,9 @@ import matplotlib.pyplot as plt
 from wordcloud import WordCloud
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 import nltk
-import datetime
-import os
-
 nltk.download('vader_lexicon')
 
+# Dummy login
 USERNAME = "admin"
 PASSWORD = "123"
 
@@ -18,141 +16,104 @@ if "page" not in st.session_state:
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
-def analyze_sentiment(penilaian):
-    if penilaian == "Baik":
-        return "Positif"
-    elif penilaian == "Sedang":
-        return "Netral"
-    elif penilaian == "Buruk":
-        return "Negatif"
-    else:
-        return "Netral"
-
-# ---------- Halaman Utama ----------
-def home():
-    st.title("📌 Analisis Sentimen Pelayanan SAMSAT")
-    col1, col2 = st.columns([6, 1])
-    with col2:
-        if st.button("🔐 Admin"):
-            st.session_state.page = "login"
-    st.write("Silakan pilih menu di bawah:")
-    if st.button("📝 Isi Komentar"):
-        st.session_state.page = "form"
-
-# ---------- Form Komentar ----------
-def form():
-    st.title("🗣️ Form Komentar Publik")
-    name = st.text_input("Nama")
-    tanggal = st.date_input("Tanggal", value=datetime.date.today())
-    sumber = st.selectbox("Mendapatkan informasi dari mana?", ["YouTube", "Instagram", "Google Maps", "WhatsApp", "Scan Ditempat"])
-    penilaian = st.radio("Bagaimana pelayanannya?", ["Baik", "Sedang", "Buruk"])
-    
-    komentar = st.text_area("Berikan alasanmu:")
-    if st.button("Kirim"):
-        sentimen = analyze_sentiment(penilaian)
-        data = {
-            "Tanggal": tanggal,
-            "Nama": name,
-            "Sumber": sumber,
-            "Penilaian": penilaian,
-            "Komentar": komentar,
-            "Sentimen": sentimen
-        }
-        df = pd.DataFrame([data])
-        file_exists = os.path.isfile("data_komentar.csv")
-        df.to_csv("data_komentar.csv", mode="a", header=not file_exists, index=False)
-        st.session_state.page = "thanks"
-
-# ---------- Terima Kasih ----------
-def thanks():
-    st.title("😊 Terima kasih atas partisipasi Anda!")
-    if st.button("Kembali ke Beranda"):
-        st.session_state.page = "home"
-
-# ---------- Login Admin ----------
 def login():
-    st.title("🔒 Login Admin")
-    user = st.text_input("Username")
-    pw = st.text_input("Password", type="password")
-    if st.button("Login"):
-        if user == USERNAME and pw == PASSWORD:
-            st.session_state.logged_in = True
-            st.session_state.page = "dashboard"
-        else:
-            st.error("Username atau password salah.")
-    if st.button("Kembali"):
-        st.session_state.page = "home"
+    with st.form("Login Admin"):
+        st.subheader("🔐 Login Admin")
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
+        login_btn = st.form_submit_button("Login")
+        if login_btn:
+            if username == USERNAME and password == PASSWORD:
+                st.session_state.logged_in = True
+                st.success("Login berhasil!")
+            else:
+                st.error("Username atau password salah.")
 
-# ---------- Dashboard ----------
+def generate_wordcloud(text_data):
+    text_combined = " ".join(text_data)
+    wordcloud = WordCloud(width=800, height=400, background_color="white").generate(text_combined)
+    return wordcloud
+
+def load_data():
+    try:
+        df = pd.read_csv("data_komentar.csv", parse_dates=["Waktu"])
+        return df
+    except Exception as e:
+        st.warning(f"Belum ada data komentar atau terjadi kesalahan: {e}")
+        return pd.DataFrame()
+
 def dashboard():
-    st.title("📊 Dashboard Analisis Sentimen")
+    st.markdown("<h2 style='text-align:center; color:#003366;'>📋 Dashboard Sentimen Layanan Samsat</h2>", unsafe_allow_html=True)
 
-    if not os.path.exists("data_komentar.csv"):
-        st.warning("Belum ada data komentar.")
+    df = load_data()
+    if df.empty:
         return
 
-    df = pd.read_csv("data_komentar.csv")
+    # Total komentar per platform
+    total_platform = df['Platform'].value_counts()
 
-    st.write("### Grafik Total Komentar per Platform")
-    platform_counts = df["Sumber"].value_counts()
-    st.bar_chart(platform_counts)
+    col1, col2, col3, col4, col5 = st.columns(5)
+    col1.metric("Instagram", f"{total_platform.get('Instagram', 0)} Komentar")
+    col2.metric("YouTube", f"{total_platform.get('YouTube', 0)} Komentar")
+    col3.metric("Google Maps", f"{total_platform.get('Google Maps', 0)} Komentar")
+    col4.metric("WhatsApp", f"{total_platform.get('WhatsApp', 0)} Komentar")
+    col5.metric("Scan di Tempat", f"{total_platform.get('Scan di Tempat', 0)} Komentar")
 
-    st.write("### Grafik Hasil Sentimen")
-    sentiment_counts = df["Sentimen"].value_counts()
-    st.bar_chart(sentiment_counts)
+    st.divider()
 
-    st.write("### Wordcloud Komentar")
-    text = " ".join(df["Komentar"].astype(str))
-    wordcloud = WordCloud(width=800, height=400, background_color="white").generate(text)
-    fig, ax = plt.subplots()
-    ax.imshow(wordcloud, interpolation="bilinear")
-    ax.axis("off")
-    st.pyplot(fig)
+    # Grafik jumlah komentar per platform
+    komentar_per_platform = df['Platform'].value_counts()
+    fig1, ax1 = plt.subplots()
+    ax1.bar(komentar_per_platform.index, komentar_per_platform.values, color=['violet', 'salmon', 'skyblue', 'green', 'orange'])
+    ax1.set_title("Jumlah Komentar per Platform")
+    ax1.set_ylabel("Jumlah Komentar")
+    st.pyplot(fig1)
 
-    st.write("### Insight dan Rekomendasi")
-    st.info(f"""
-    - Komentar positif menunjukkan pelayanan cukup memuaskan di beberapa platform.
-    - Platform {platform_counts.idxmax()} adalah sumber komentar terbanyak.
-    - Disarankan untuk menindaklanjuti komentar negatif dari platform {platform_counts.idxmin()}.
-    - Tingkatkan pelayanan pada aspek yang sering disebut dalam komentar buruk.
+    # Grafik distribusi sentimen
+    distribusi = df['Sentimen'].value_counts()
+    fig2, ax2 = plt.subplots()
+    ax2.pie(distribusi.values, labels=distribusi.index, autopct='%1.1f%%', startangle=90)
+    ax2.axis('equal')
+    st.pyplot(fig2)
+
+    # Wordcloud
+    st.subheader("📌 Wordcloud Komentar")
+    wordcloud = generate_wordcloud(df['Komentar'].astype(str))
+    st.image(wordcloud.to_array(), use_column_width=True)
+
+    # Insight & Rekomendasi
+    st.subheader("💡 Insight & Rekomendasi")
+    st.markdown("""
+    - 🎥 **YouTube** menunjukkan sentimen negatif tertinggi. Perlu evaluasi konten & interaksi pengguna.
+    - 📸 **Instagram** didominasi komentar netral. Gunakan visual kampanye untuk dorong sentimen positif.
+    - 🗺️ **Google Maps** lebih banyak komentar positif. Pertahankan pelayanan offline.
+    - 💬 **WhatsApp** dapat dioptimalkan untuk respons cepat dan personal.
+    - 📍 **Scan di Tempat** cukup efektif, pastikan sistem QR tidak error saat digunakan.
     """)
 
-    st.write("### Tabel Hasil Komentar")
-    edited_df = df.copy()
+    # Tabel komentar
+    st.subheader("📝 Data Komentar")
+    st.dataframe(df)
+    csv = df.to_csv(index=False).encode("utf-8")
+    st.download_button("📥 Download CSV", csv, "data_komentar.csv", "text/csv")
 
-    for i in range(len(edited_df)):
-        col = st.columns([6, 1])
-        with col[0]:
-            st.write(edited_df.iloc[i].to_dict())
-        with col[1]:
-            if st.button("🗑️ Hapus", key=f"del_{i}"):
-                df.drop(index=i, inplace=True)
-                df.to_csv("data_komentar.csv", index=False)
-                st.experimental_rerun()
-
-    st.download_button("📥 Unduh CSV", df.to_csv(index=False).encode(), "komentar.csv", "text/csv")
-    st.download_button("📥 Unduh TXT", df.to_string(index=False).encode(), "komentar.txt", "text/plain")
-
-    if st.button("Logout"):
-        st.session_state.logged_in = False
-        st.session_state.page = "home"
-
-# ---------- Routing ----------
 def main():
-    page = st.session_state.page
-    if page == "home":
-        home()
-    elif page == "form":
-        form()
-    elif page == "thanks":
-        thanks()
-    elif page == "login":
-        login()
-    elif page == "dashboard":
-        if st.session_state.logged_in:
-            dashboard()
+    colA, colB = st.columns([6, 1])
+    with colB:
+        if not st.session_state.logged_in:
+            if st.button("🔐 Admin"):
+                st.session_state.page = "login"
         else:
-            login()
+            st.success("Admin Login ✔")
+            if st.button("🔓 Logout"):
+                st.session_state.logged_in = False
+
+    if st.session_state.page == "login":
+        login()
+    elif st.session_state.logged_in:
+        dashboard()
+    else:
+        st.info("Selamat datang! Silakan login untuk melihat dashboard.")
 
 if __name__ == "__main__":
     main()
