@@ -5,6 +5,7 @@ from wordcloud import WordCloud
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 import nltk
 import os
+import time
 nltk.download('vader_lexicon')
 
 # Dummy login
@@ -64,9 +65,10 @@ def form_page():
         else:
             sentimen = "Negatif"
         save_comment(platform, komentar, sentimen)
-        st.success("Terima kasih atas tanggapan Anda 🙏")
-        if st.button("⬅ Kembali ke Beranda"):
-            st.session_state.page = "home"
+        st.success("✅ Terima kasih atas tanggapan Anda 🙏")
+        time.sleep(3)
+        st.session_state.page = "home"
+        st.experimental_rerun()
 
 def login_page():
     st.subheader("🔐 Login Admin")
@@ -76,6 +78,7 @@ def login_page():
         if username == USERNAME and password == PASSWORD:
             st.session_state.logged_in = True
             st.session_state.page = "dashboard"
+            st.experimental_rerun()
         else:
             st.error("Username atau password salah!")
 
@@ -113,6 +116,7 @@ def dashboard_page():
     if st.button("🔙 Logout"):
         st.session_state.logged_in = False
         st.session_state.page = "home"
+        st.experimental_rerun()
 
 # Routing halaman
 if st.session_state.page == "home":
